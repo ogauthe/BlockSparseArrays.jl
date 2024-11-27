@@ -15,7 +15,21 @@
 ```julia
 julia> using Pkg: Pkg
 
-julia> Pkg.add("https://github.com/ITensor/BlockSparseArrays.jl")
+julia> Pkg.add(url="https://github.com/ITensor/BroadcastMapConversion.jl")
+
+julia> Pkg.add(url="https://github.com/ITensor/NestedPermutedDimsArrays.jl")
+
+julia> Pkg.add(url="https://github.com/ITensor/TypeParameterAccessors.jl")
+
+julia> Pkg.add(url="https://github.com/ITensor/LabelledNumbers.jl")
+
+julia> Pkg.add(url="https://github.com/ITensor/GradedUnitRanges.jl")
+
+julia> Pkg.add(url="https://github.com/ITensor/SparseArraysBase.jl")
+
+julia> Pkg.add(url="https://github.com/ITensor/TensorAlgebra.jl")
+
+julia> Pkg.add(url="https://github.com/ITensor/BlockSparseArrays.jl")
 ```
 =#
 
