@@ -163,8 +163,10 @@ end
 
 # Version of `permutedims!` that assumes the destination and source
 # have the same blocking.
-# TODO: Delete this and handle this logic in block sparse `map!`.
-function blocksparse_permutedims!(a_dest::AbstractArray, a_src::AbstractArray, perm)
+# TODO: Delete this and handle this logic in block sparse `map[!]`, define
+# `blockisequal_map[!]`.
+# TODO: Maybe define a `BlockIsEqualInterface` for these kinds of functions.
+function blockisequal_permutedims!(a_dest::AbstractArray, a_src::AbstractArray, perm)
   blocks(a_dest) .= blocks(PermutedDimsArray(a_src, perm))
   return a_dest
 end
@@ -176,7 +178,8 @@ end
   a::AbstractArray, perm
 )
   a_dest = similar(PermutedDimsArray(a, perm))
-  blocksparse_permutedims!(a_dest, a, perm)
+  # TODO: Maybe define this as `@interface BlockIsEqualInterface() permutedims!(...)`.
+  blockisequal_permutedims!(a_dest, a, perm)
   return a_dest
 end
 
@@ -187,7 +190,8 @@ end
   a_dest::AbstractArray, a_src::AbstractArray, perm
 )
   if all(blockisequal.(axes(a_dest), axes(PermutedDimsArray(a_src, perm))))
-    blocksparse_permutedims!(a_dest, a_src, perm)
+    # TODO: Maybe define this as `@interface BlockIsEqualInterface() permutedims!(...)`.
+    blockisequal_permutedims!(a_dest, a_src, perm)
     return a_dest
   end
   @interface DefaultArrayInterface() permutedims!(a_dest, a_src, perm)
