@@ -65,9 +65,7 @@ end
 @interface ::AbstractBlockSparseArrayInterface function Base.getindex(
   a::AbstractArray{<:Any,0}
 )
-  # TODO: Use `Block()[]` once https://github.com/JuliaArrays/BlockArrays.jl/issues/430
-  # is fixed.
-  return a[BlockIndex()]
+  return a[Block()[]]
 end
 
 # a[1:2, 1:2]
