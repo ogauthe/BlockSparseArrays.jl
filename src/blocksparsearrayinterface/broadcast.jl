@@ -1,4 +1,5 @@
 using Base.Broadcast: BroadcastStyle, AbstractArrayStyle, DefaultArrayStyle, Broadcasted
+using GPUArraysCore: @allowscalar
 using MapBroadcast: Mapped
 using DerivableInterfaces: DerivableInterfaces, @interface
 
@@ -36,14 +37,28 @@ function Base.similar(bc::Broadcasted{<:BlockSparseArrayStyle}, elt::Type)
   return similar(first(m.args), elt, combine_axes(axes.(m.args)...))
 end
 
+# Catches cases like `dest .= value` or `dest .= value1 .+ value2`.
+# If the RHS is zero, this makes sure that the storage is emptied,
+# which is logic that is handled by `fill!`.
+function copyto_blocksparse!(dest::AbstractArray, bc::Broadcasted{<:AbstractArrayStyle{0}})
+  # `[]` is used to unwrap zero-dimensional arrays.
+  value = @allowscalar bc.f(bc.args...)[]
+  return @interface BlockSparseArrayInterface() fill!(dest, value)
+end
+
 # Broadcasting implementation
 # TODO: Delete this in favor of `DerivableInterfaces` version.
-function Base.copyto!(
-  dest::AbstractArray{<:Any,N}, bc::Broadcasted{BlockSparseArrayStyle{N}}
-) where {N}
+function copyto_blocksparse!(dest::AbstractArray, bc::Broadcasted)
   # convert to map
   # flatten and only keep the AbstractArray arguments
   m = Mapped(bc)
-  @interface interface(bc) map!(m.f, dest, m.args...)
+  @interface interface(dest, bc) map!(m.f, dest, m.args...)
+  return dest
+end
+
+function Base.copyto!(
+  dest::AbstractArray{<:Any,N}, bc::Broadcasted{BlockSparseArrayStyle{N}}
+) where {N}
+  copyto_blocksparse!(dest, bc)
   return dest
 end
