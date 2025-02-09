@@ -1,0 +1,22 @@
+name: "IntegrationTest"
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags: '*'
+  pull_request:
+
+jobs:
+  integration-test:
+    name: "IntegrationTest"
+    strategy:
+       matrix:
+         repo:
+           - 'ITensor/NamedDimsArrays.jl'
+           - 'ITensor/ITensorBase.jl'
+           - 'ITensor/QuantumOperatorDefinitions.jl'
+    uses: "ITensor/ITensorActions/.github/workflows/IntegrationTest.yml@main"
+    with:
+      local-registry-urls: "https://github.com/ITensor/ITensorRegistry.git"
+      repo: "${{ matrix.repo }}"
