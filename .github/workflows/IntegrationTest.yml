@@ -18,5 +18,5 @@ jobs:
            - 'ITensor/QuantumOperatorDefinitions.jl'
     uses: "ITensor/ITensorActions/.github/workflows/IntegrationTest.yml@main"
     with:
-      local-registry-urls: "https://github.com/ITensor/ITensorRegistry.git"
+      localregistry: "https://github.com/ITensor/ITensorRegistry.git"
       repo: "${{ matrix.repo }}"
