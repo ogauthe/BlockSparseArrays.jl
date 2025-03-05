@@ -1,7 +1,8 @@
-# type alias for block-diagonal
-using LinearAlgebra: Diagonal
+using BlockArrays: blockedrange
 using DiagonalArrays: DiagonalArrays, diagonal
+using LinearAlgebra: Diagonal
 
+# type alias for block-diagonal
 const BlockDiagonal{T,A,Axes,V<:AbstractVector{A}} = BlockSparseMatrix{
   T,A,Diagonal{A,V},Axes
 }
@@ -12,8 +13,8 @@ const BlockSparseDiagonal{T,A<:AbstractBlockSparseVector{T}} = Diagonal{T,A}
 end
 
 function BlockDiagonal(blocks::AbstractVector{<:AbstractMatrix})
-  return BlockSparseArray(
-    Diagonal(blocks), (blockedrange(size.(blocks, 1)), blockedrange(size.(blocks, 2)))
+  return _BlockSparseArray(
+    Diagonal(blocks), blockedrange.((size.(blocks, 1), size.(blocks, 2)))
   )
 end
 

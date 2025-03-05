@@ -5,7 +5,8 @@ export BlockSparseArray,
   BlockSparseVector,
   blockstoredlength,
   eachblockstoredindex,
-  eachstoredblock
+  eachstoredblock,
+  sparsemortar
 
 # factorizations
 include("factorizations/svd.jl")
@@ -38,7 +39,6 @@ include("abstractblocksparsearray/cat.jl")
 include("abstractblocksparsearray/adapt.jl")
 
 # functions specifically for BlockSparseArray
-include("blocksparsearray/defaults.jl")
 include("blocksparsearray/blocksparsearray.jl")
 include("blocksparsearray/blockdiagonalarray.jl")
 

@@ -94,23 +94,21 @@ function map_zero_dim! end
   return a_dest
 end
 
-# TODO: Decide what to do with these.
+# TODO: Do we need this function or can we just use `map`?
+# Probably it should be a special version of `map` where we
+# specify the function preserves zeros, i.e.
+# `map(f, a; preserves_zeros=true)` or `@preserves_zeros map(f, a)`.
 function map_stored_blocks(f, a::AbstractArray)
-  # TODO: Implement this as:
-  # ```julia
-  # mapped_blocks = SparseArraysInterface.map_stored(f, blocks(a))
-  # BlockSparseArray(mapped_blocks, axes(a))
-  # ```
-  # TODO: `block_stored_indices` should output `Indices` storing
-  # the stored Blocks, not a `Dictionary` from cartesian indices
-  # to Blocks.
-  bs = collect(eachblockstoredindex(a))
-  ds = map(b -> f(@view(a[b])), bs)
-  # We manually specify the block type using `Base.promote_op`
-  # since `a[b]` may not be inferrable. For example, if `blocktype(a)`
-  # is `Diagonal{Float64,Vector{Float64}}`, the non-stored blocks are `Matrix{Float64}`
-  # since they can't necessarily by `Diagonal` if there are rectangular blocks.
-  mapped_blocks = Dictionary{eltype(bs),eltype(ds)}(bs, ds)
-  # TODO: Use `similartype(typeof(a), eltype(eltype(mapped_blocks)))(...)`.
-  return BlockSparseArray(mapped_blocks, axes(a))
+  block_stored_indices = collect(eachblockstoredindex(a))
+  if isempty(block_stored_indices)
+    blocktype_a′ = Base.promote_op(f, blocktype(a))
+    return BlockSparseArray{eltype(blocktype_a′),ndims(a),blocktype_a′}(undef, axes(a))
+  end
+  stored_blocks = map(B -> f(@view!(a[B])), block_stored_indices)
+  blocktype_a′ = eltype(stored_blocks)
+  a′ = BlockSparseArray{eltype(blocktype_a′),ndims(a),blocktype_a′}(undef, axes(a))
+  for (B, b) in zip(block_stored_indices, stored_blocks)
+    a′[B] = b
+  end
+  return a′
 end
