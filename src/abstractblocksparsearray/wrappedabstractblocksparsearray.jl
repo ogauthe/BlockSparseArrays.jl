@@ -23,6 +23,12 @@ const AnyAbstractBlockSparseArray{T,N} = Union{
   <:AbstractBlockSparseArray{T,N},<:WrappedAbstractBlockSparseArray{T,N}
 }
 
+const AnyAbstractBlockSparseVector{T} = AnyAbstractBlockSparseArray{T,1}
+const AnyAbstractBlockSparseMatrix{T} = AnyAbstractBlockSparseArray{T,2}
+const AnyAbstractBlockSparseVecOrMat{T,N} = Union{
+  AnyAbstractBlockSparseVector{T},AnyAbstractBlockSparseMatrix{T}
+}
+
 function DerivableInterfaces.interface(::Type{<:AnyAbstractBlockSparseArray})
   return BlockSparseArrayInterface()
 end
@@ -338,26 +344,15 @@ function Base.Array(a::AnyAbstractBlockSparseArray)
 end
 
 function SparseArraysBase.isstored(
-  a::AnyAbstractBlockSparseArray{<:Any,N}, I::Vararg{Int,N}
+  a::AbstractBlockSparseArray{<:Any,N}, I::Vararg{Int,N}
 ) where {N}
-  bI = BlockIndex(findblockindex.(axes(a), I))
-  blocks_a = blocks(a)
-  return isstored(blocks_a, bI.I...) && isstored(blocks_a[bI.I...], bI.α...)
-end
-
-# This circumvents issues passing certain kinds of SubArrays
-# to the more generic block sparse `isstored` definition,
-# for example `blocks(a)` is broken for certain slices.
-function SparseArraysBase.isstored(
-  a::SubArray{<:Any,N,<:AbstractBlockSparseArray}, I::Vararg{Int,N}
-) where {N}
-  return @interface DefaultArrayInterface() isstored(a, I...)
+  return @interface interface(a) isstored(a, I...)
 end
 
 function Base.replace_in_print_matrix(
-  A::AnyAbstractBlockSparseArray{<:Any,2}, i::Integer, j::Integer, s::AbstractString
+  a::AnyAbstractBlockSparseVecOrMat, i::Integer, j::Integer, s::AbstractString
 )
-  return isstored(A, i, j) ? s : Base.replace_with_centered_mark(s)
+  return isstored(a, i, j) ? s : Base.replace_with_centered_mark(s)
 end
 
 # attempt to catch things that wrap GPU arrays

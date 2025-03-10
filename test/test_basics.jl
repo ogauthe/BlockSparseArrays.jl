@@ -130,6 +130,15 @@ arrayts = (Array, JLArray)
         @test iszero(storedlength(a))
       end
     end
+
+    for dims in (
+      ([2, 2], [2, 2]),
+      (([2, 2], [2, 2]),),
+      blockedrange.(([2, 2], [2, 2])),
+      (blockedrange.(([2, 2], [2, 2])),),
+    )
+      @test_throws ArgumentError BlockSparseVector{elt}(undef, dims...)
+    end
   end
   @testset "blockstype, blocktype" begin
     a = arrayt(randn(elt, 2, 2))
@@ -1169,6 +1178,15 @@ arrayts = (Array, JLArray)
     if elt === Float64
       # Not testing other element types since they change the
       # spacing so it isn't easy to make the test general.
+
+      a′ = BlockSparseVector{elt,arrayt{elt,1}}(undef, [2, 2])
+      @allowscalar a′[1] = 1
+      a = a′
+      @test sprint(show, "text/plain", a) ==
+        "$(summary(a)):\n $(eltype(a)(1))\n $(zero(eltype(a)))\n ───\n  ⋅ \n  ⋅ "
+      a = @view a′[:]
+      @test sprint(show, "text/plain", a) ==
+        "$(summary(a)):\n $(eltype(a)(1))\n $(zero(eltype(a)))\n  ⋅ \n  ⋅ "
 
       a′ = BlockSparseMatrix{elt,arrayt{elt,2}}(undef, [2, 2], [2, 2])
       @allowscalar a′[1, 2] = 12
