@@ -1,15 +1,10 @@
 module BlockSparseArraysTensorAlgebraExt
 using BlockArrays: AbstractBlockedUnitRange
-using GradedUnitRanges: tensor_product
+
 using TensorAlgebra: TensorAlgebra, FusionStyle, BlockReshapeFusion
+using TensorProducts: OneToOne
 
-function TensorAlgebra.:⊗(a1::AbstractBlockedUnitRange, a2::AbstractBlockedUnitRange)
-  return tensor_product(a1, a2)
-end
-
-using BlockArrays: AbstractBlockedUnitRange
 using BlockSparseArrays: AbstractBlockSparseArray, blockreshape
-using TensorAlgebra: TensorAlgebra, FusionStyle, BlockReshapeFusion
 
 TensorAlgebra.FusionStyle(::AbstractBlockedUnitRange) = BlockReshapeFusion()
 
@@ -46,13 +41,12 @@ using DerivableInterfaces: @interface
 using GradedUnitRanges:
   GradedUnitRanges,
   AbstractGradedUnitRange,
-  OneToOne,
   blockmergesortperm,
   blocksortperm,
   dual,
   invblockperm,
   nondual,
-  tensor_product
+  unmerged_tensor_product
 using LinearAlgebra: Adjoint, Transpose
 using TensorAlgebra:
   TensorAlgebra, FusionStyle, BlockReshapeFusion, SectorFusion, fusedims, splitdims
@@ -77,10 +71,17 @@ function block_mergesort(a::AbstractArray)
 end
 
 function TensorAlgebra.fusedims(
-  ::SectorFusion, a::AbstractArray, axes::AbstractUnitRange...
+  ::SectorFusion, a::AbstractArray, merged_axes::AbstractUnitRange...
 )
   # First perform a fusion using a block reshape.
-  a_reshaped = fusedims(BlockReshapeFusion(), a, axes...)
+  # TODO avoid groupreducewhile. Require refactor of fusedims.
+  unmerged_axes = groupreducewhile(
+    unmerged_tensor_product, axes(a), length(merged_axes); init=OneToOne()
+  ) do i, axis
+    return length(axis) ≤ length(merged_axes[i])
+  end
+
+  a_reshaped = fusedims(BlockReshapeFusion(), a, unmerged_axes...)
   # Sort the blocks by sector and merge the equivalent sectors.
   return block_mergesort(a_reshaped)
 end
@@ -90,10 +91,11 @@ function TensorAlgebra.splitdims(
 )
   # First, fuse axes to get `blockmergesortperm`.
   # Then unpermute the blocks.
-  axes_prod =
-    groupreducewhile(tensor_product, split_axes, ndims(a); init=OneToOne()) do i, axis
-      return length(axis) ≤ length(axes(a, i))
-    end
+  axes_prod = groupreducewhile(
+    unmerged_tensor_product, split_axes, ndims(a); init=OneToOne()
+  ) do i, axis
+    return length(axis) ≤ length(axes(a, i))
+  end
   blockperms = blocksortperm.(axes_prod)
   sorted_axes = map((r, I) -> only(axes(r[I])), axes_prod, blockperms)
 
@@ -106,34 +108,11 @@ function TensorAlgebra.splitdims(
   return splitdims(BlockReshapeFusion(), a_blockpermed, split_axes...)
 end
 
-# This is a temporary fix for `eachindex` being broken for BlockSparseArrays
-# with mixed dual and non-dual axes. This shouldn't be needed once
-# GradedUnitRanges is rewritten using BlockArrays v1.
-# TODO: Delete this once GradedUnitRanges is rewritten.
-function Base.eachindex(a::AbstractBlockSparseArray)
-  return CartesianIndices(nondual.(axes(a)))
-end
-
 # TODO: Handle this through some kind of trait dispatch, maybe
 # a `SymmetryStyle`-like trait to check if the block sparse
 # matrix has graded axes.
 function Base.axes(a::Adjoint{<:Any,<:AbstractBlockSparseMatrix})
   return dual.(reverse(axes(a')))
-end
-
-# This definition is only needed since calls like
-# `a[[Block(1), Block(2)]]` where `a isa AbstractGradedUnitRange`
-# returns a `BlockSparseVector` instead of a `BlockVector`
-# due to limitations in the `BlockArray` type not allowing
-# axes with non-Int element types.
-# TODO: Remove this once that issue is fixed,
-# see https://github.com/JuliaArrays/BlockArrays.jl/pull/405.
-using BlockArrays: BlockRange
-using LabelledNumbers: label
-function GradedUnitRanges.blocklabels(a::BlockSparseVector)
-  return map(BlockRange(a)) do block
-    return label(blocks(a)[Int(block)])
-  end
 end
 
 end
