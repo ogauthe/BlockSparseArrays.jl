@@ -17,6 +17,8 @@ jobs:
     strategy:
        matrix:
          pkg:
+           - 'FusionTensors'
+           - 'GradedArrays'
            - 'ITensorBase'
            - 'NamedDimsArrays'
            - 'QuantumOperatorDefinitions'
