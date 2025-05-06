@@ -8,9 +8,6 @@ export BlockSparseArray,
   eachstoredblock,
   sparsemortar
 
-# factorizations
-include("factorizations/svd.jl")
-
 # possible upstream contributions
 include("BlockArraysExtensions/blockedunitrange.jl")
 include("BlockArraysExtensions/BlockArraysExtensions.jl")
@@ -44,5 +41,8 @@ include("blocksparsearray/blocksparsearray.jl")
 include("blocksparsearray/blockdiagonalarray.jl")
 
 include("BlockArraysSparseArraysBaseExt/BlockArraysSparseArraysBaseExt.jl")
+
+# factorizations
+include("factorizations/svd.jl")
 
 end
