@@ -1,11 +1,13 @@
 using BlockArrays: Block, BlockedMatrix, BlockedVector, blocks, mortar
 using BlockSparseArrays: BlockSparseArray, BlockDiagonal, eachblockstoredindex
 using MatrixAlgebraKit:
+  left_orth,
   left_polar,
   lq_compact,
   lq_full,
   qr_compact,
   qr_full,
+  right_orth,
   right_polar,
   svd_compact,
   svd_full,
@@ -166,7 +168,7 @@ end
   end
 end
 
-@testset "qr_compact" for T in (Float32, Float64, ComplexF32, ComplexF64)
+@testset "qr_compact (T=$T)" for T in (Float32, Float64, ComplexF32, ComplexF64)
   for i in [2, 3], j in [2, 3], k in [2, 3], l in [2, 3]
     A = BlockSparseArray{T}(undef, ([i, j], [k, l]))
     A[Block(1, 1)] = randn(T, i, k)
@@ -177,7 +179,7 @@ end
   end
 end
 
-@testset "qr_full" for T in (Float32, Float64, ComplexF32, ComplexF64)
+@testset "qr_full (T=$T)" for T in (Float32, Float64, ComplexF32, ComplexF64)
   for i in [2, 3], j in [2, 3], k in [2, 3], l in [2, 3]
     A = BlockSparseArray{T}(undef, ([i, j], [k, l]))
     A[Block(1, 1)] = randn(T, i, k)
@@ -235,5 +237,39 @@ end
 
   C, U = right_polar(A)
   @test C * U ≈ A
+  @test Matrix(U * U') ≈ LinearAlgebra.I
+end
+
+@testset "left_orth (T=$T)" for T in (Float32, Float64, ComplexF32, ComplexF64)
+  A = BlockSparseArray{T}(undef, ([3, 4], [2, 3]))
+  A[Block(1, 1)] = randn(T, 3, 2)
+  A[Block(2, 2)] = randn(T, 4, 3)
+
+  for kind in (:polar, :qr, :svd)
+    U, C = left_orth(A; kind)
+    @test U * C ≈ A
+    @test Matrix(U'U) ≈ LinearAlgebra.I
+  end
+
+  U, C = left_orth(A; trunc=(; maxrank=2))
+  @test size(U, 2) ≤ 2
+  @test size(C, 1) ≤ 2
+  @test Matrix(U'U) ≈ LinearAlgebra.I
+end
+
+@testset "right_orth (T=$T)" for T in (Float32, Float64, ComplexF32, ComplexF64)
+  A = BlockSparseArray{T}(undef, ([2, 3], [3, 4]))
+  A[Block(1, 1)] = randn(T, 2, 3)
+  A[Block(2, 2)] = randn(T, 3, 4)
+
+  for kind in (:lq, :polar, :svd)
+    C, U = right_orth(A; kind)
+    @test C * U ≈ A
+    @test Matrix(U * U') ≈ LinearAlgebra.I
+  end
+
+  C, U = right_orth(A; trunc=(; maxrank=2))
+  @test size(C, 2) ≤ 2
+  @test size(U, 1) ≤ 2
   @test Matrix(U * U') ≈ LinearAlgebra.I
 end

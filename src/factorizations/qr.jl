@@ -1,4 +1,4 @@
-using MatrixAlgebraKit: MatrixAlgebraKit, qr_compact!, qr_full!
+using MatrixAlgebraKit: MatrixAlgebraKit, lq_compact!, lq_full!, qr_compact!, qr_full!
 
 # TODO: this is a hardcoded for now to get around this function not being defined in the
 # type domain
