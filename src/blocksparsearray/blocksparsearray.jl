@@ -9,6 +9,7 @@ using BlockArrays:
 using DerivableInterfaces: @interface
 using Dictionaries: Dictionary
 using SparseArraysBase: SparseArrayDOK
+using TypeParameterAccessors: similartype
 
 """
     SparseArrayDOK{T}(undef_blocks, axes)
@@ -173,7 +174,9 @@ end
 function BlockSparseArray{T,N}(
   ::UndefInitializer, axes::Tuple{Vararg{AbstractUnitRange{<:Integer},N}}
 ) where {T,N}
-  return BlockSparseArray{T,N,Array{T,N}}(undef, axes)
+  axt = Tuple{blockaxistype.(axes)...}
+  A = similartype(Array{T}, axt)
+  return BlockSparseArray{T,N,A}(undef, axes)
 end
 
 function BlockSparseArray{T,N}(
