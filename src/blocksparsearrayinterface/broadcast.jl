@@ -1,23 +1,44 @@
-using Base.Broadcast: BroadcastStyle, AbstractArrayStyle, DefaultArrayStyle, Broadcasted
+using Base.Broadcast:
+  Broadcast, BroadcastStyle, AbstractArrayStyle, DefaultArrayStyle, Broadcasted
 using GPUArraysCore: @allowscalar
 using MapBroadcast: Mapped
 using DerivableInterfaces: DerivableInterfaces, @interface
 
-abstract type AbstractBlockSparseArrayStyle{N} <: AbstractArrayStyle{N} end
+abstract type AbstractBlockSparseArrayStyle{N,B<:AbstractArrayStyle{N}} <:
+              AbstractArrayStyle{N} end
 
-function DerivableInterfaces.interface(::Type{<:AbstractBlockSparseArrayStyle})
-  return BlockSparseArrayInterface()
+blockstyle(::AbstractBlockSparseArrayStyle{N,B}) where {N,B<:AbstractArrayStyle{N}} = B()
+
+function Broadcast.BroadcastStyle(
+  style1::AbstractBlockSparseArrayStyle, style2::AbstractBlockSparseArrayStyle
+)
+  style = Broadcast.result_style(blockstyle(style1), blockstyle(style2))
+  return BlockSparseArrayStyle(style)
 end
 
-struct BlockSparseArrayStyle{N} <: AbstractBlockSparseArrayStyle{N} end
+function DerivableInterfaces.interface(
+  ::Type{<:AbstractBlockSparseArrayStyle{N,B}}
+) where {N,B<:AbstractArrayStyle{N}}
+  return BlockSparseArrayInterface(interface(B))
+end
 
-# Define for new sparse array types.
-# function Broadcast.BroadcastStyle(arraytype::Type{<:MyBlockSparseArray})
-#   return BlockSparseArrayStyle{ndims(arraytype)}()
-# end
+struct BlockSparseArrayStyle{N,B<:AbstractArrayStyle{N}} <:
+       AbstractBlockSparseArrayStyle{N,B}
+  blockstyle::B
+end
+function BlockSparseArrayStyle{N}(blockstyle::AbstractArrayStyle{N}) where {N}
+  return BlockSparseArrayStyle{N,typeof(blockstyle)}(blockstyle)
+end
 
+function BlockSparseArrayStyle{N,B}() where {N,B<:AbstractArrayStyle{N}}
+  return BlockSparseArrayStyle{N,B}(B())
+end
+BlockSparseArrayStyle{N}() where {N} = BlockSparseArrayStyle{N}(DefaultArrayStyle{N}())
 BlockSparseArrayStyle(::Val{N}) where {N} = BlockSparseArrayStyle{N}()
 BlockSparseArrayStyle{M}(::Val{N}) where {M,N} = BlockSparseArrayStyle{N}()
+function BlockSparseArrayStyle{M,B}(::Val{N}) where {M,B<:AbstractArrayStyle{M},N}
+  return BlockSparseArrayStyle{N}(B(Val(N)))
+end
 
 Broadcast.BroadcastStyle(a::BlockSparseArrayStyle, ::DefaultArrayStyle{0}) = a
 function Broadcast.BroadcastStyle(
