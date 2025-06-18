@@ -42,6 +42,14 @@ function eachblockstoredindex(a::AbstractArray)
   return Block.(Tuple.(eachstoredindex(blocks(a))))
 end
 
+function SparseArraysBase.isstored(a::AbstractArray, I1::Block{1}, Irest::Block{1}...)
+  I = (I1, Irest...)
+  return isstored(blocks(a), Int.(I)...)
+end
+function SparseArraysBase.isstored(a::AbstractArray{<:Any,N}, I::Block{N}) where {N}
+  return isstored(a, Tuple(I)...)
+end
+
 using DiagonalArrays: diagindices
 # Block version of `DiagonalArrays.diagindices`.
 function blockdiagindices(a::AbstractArray)
