@@ -68,12 +68,20 @@ for f in (:axes, :unsafe_indices, :axes1, :first, :last, :size, :length, :unsafe
 end
 Base.getindex(S::BlockIndices, i::Integer) = getindex(S.indices, i)
 
-function _blockslice(x, y::AbstractUnitRange{<:Integer})
+# Generalization of to `BlockArrays._blockslice`:
+# https://github.com/JuliaArrays/BlockArrays.jl/blob/v1.6.3/src/views.jl#L13-L14
+# Used by `BlockArrays.unblock`, which is used in `to_indices`
+# to convert relative blockwise slices to absolute slices, but in a way
+# that preserves the original relative blockwise slice information.
+# TODO: Ideally this would be handled in BlockArrays.jl
+# once slicing like `A[Block(1)[[1, 2]]]` is supported.
+function _blockslice(x, y::AbstractUnitRange)
   return BlockSlice(x, y)
 end
-function _blockslice(x, y::AbstractVector{<:Integer})
+function _blockslice(x, y::AbstractVector)
   return BlockIndices(x, y)
 end
+
 function Base.getindex(S::BlockIndices, i::BlockSlice{<:Block{1}})
   # TODO: Check that `i.indices` is consistent with `S.indices`.
   # It seems like this isn't handling the case where `i` is a
@@ -167,8 +175,14 @@ const BlockIndexRangeSlices = BlockIndices{
 const BlockIndexVectorSlices = BlockIndices{
   <:BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexVector}}
 }
+const GenericBlockIndexVectorSlices = BlockIndices{
+  <:BlockVector{<:GenericBlockIndex{1},<:Vector{<:BlockIndexVector}}
+}
 const SubBlockSliceCollection = Union{
-  BlockIndexRangeSlice,BlockIndexRangeSlices,BlockIndexVectorSlices
+  BlockIndexRangeSlice,
+  BlockIndexRangeSlices,
+  BlockIndexVectorSlices,
+  GenericBlockIndexVectorSlices,
 }
 
 # TODO: This is type piracy. This is used in `reindex` when making
@@ -388,6 +402,13 @@ end
 function blockrange(
   axis::AbstractUnitRange,
   r::BlockVector{<:BlockIndex{1},<:AbstractVector{<:BlockIndexVector}},
+)
+  return map(Block, blocks(r))
+end
+
+function blockrange(
+  axis::AbstractUnitRange,
+  r::BlockVector{<:GenericBlockIndex{1},<:AbstractVector{<:BlockIndexVector}},
 )
   return map(Block, blocks(r))
 end

@@ -244,6 +244,15 @@ BlockArrays.blockindex(b::GenericBlockIndex{1}) = b.α[1]
 function GenericBlockIndex(indcs::Tuple{Vararg{GenericBlockIndex{1},N}}) where {N}
   GenericBlockIndex(block.(indcs), blockindex.(indcs))
 end
+
+function Base.checkindex(
+  ::Type{Bool}, axis::AbstractBlockedUnitRange, ind::GenericBlockIndex{1}
+)
+  return checkindex(Bool, axis, block(ind)) &&
+         checkbounds(Bool, axis[block(ind)], blockindex(ind))
+end
+Base.to_index(i::GenericBlockIndex) = i
+
 function print_tuple_elements(io::IO, @nospecialize(t))
   if !isempty(t)
     print(io, t[1])
@@ -261,6 +270,13 @@ function Base.show(io::IO, B::GenericBlockIndex)
   return nothing
 end
 
+# https://github.com/JuliaArrays/BlockArrays.jl/blob/v1.6.3/src/views.jl#L31-L32
+_maybetail(::Tuple{}) = ()
+_maybetail(t::Tuple) = Base.tail(t)
+@inline function Base.to_indices(A, inds, I::Tuple{GenericBlockIndex{1},Vararg{Any}})
+  return (inds[1][I[1]], to_indices(A, _maybetail(inds), Base.tail(I))...)
+end
+
 using Base: @propagate_inbounds
 @propagate_inbounds function Base.getindex(b::AbstractVector, K::GenericBlockIndex{1})
   return b[Block(K.I[1])][K.α[1]]
@@ -276,34 +292,64 @@ end
   return b[GenericBlockIndex(tuple(K, J...))]
 end
 
-function blockindextype(TB::Type{<:Integer}, TI::Vararg{Type{<:Integer},N}) where {N}
-  return BlockIndex{N,NTuple{N,TB},Tuple{TI...}}
-end
-function blockindextype(TB::Type{<:Integer}, TI::Vararg{Type,N}) where {N}
-  return GenericBlockIndex{N,NTuple{N,TB},Tuple{TI...}}
+# TODO: Delete this once `BlockArrays.BlockIndex` is generalized.
+@inline function Base.to_indices(
+  A, inds, I::Tuple{AbstractVector{<:GenericBlockIndex{1}},Vararg{Any}}
+)
+  return (unblock(A, inds, I), to_indices(A, _maybetail(inds), Base.tail(I))...)
 end
 
-struct BlockIndexVector{N,I<:NTuple{N,AbstractVector},TB<:Integer,BT} <: AbstractArray{BT,N}
+# This is a specialization of `BlockArrays.unblock`:
+# https://github.com/JuliaArrays/BlockArrays.jl/blob/v1.6.3/src/views.jl#L8-L11
+# that is used in the `to_indices` logic for blockwise slicing in
+# BlockArrays.jl.
+# TODO: Ideally this would be defined in BlockArrays.jl once the slicing
+# there is made more generic.
+function BlockArrays.unblock(A, inds, I::Tuple{GenericBlockIndex{1},Vararg{Any}})
+  B = first(I)
+  return _blockslice(B, inds[1][B])
+end
+
+# Work around the fact that it is type piracy to define
+# `Base.getindex(a::Block, b...)`.
+_getindex(a::Block{N}, b::Vararg{Any,N}) where {N} = GenericBlockIndex(a, b)
+_getindex(a::Block{N}, b::Vararg{Integer,N}) where {N} = a[b...]
+# Fix ambiguity.
+_getindex(a::Block{0}) = a[]
+
+struct BlockIndexVector{N,BT,I<:NTuple{N,AbstractVector},TB<:Integer} <: AbstractArray{BT,N}
   block::Block{N,TB}
   indices::I
-  function BlockIndexVector(
+  function BlockIndexVector{N,BT}(
     block::Block{N,TB}, indices::I
-  ) where {N,I<:NTuple{N,AbstractVector},TB<:Integer}
-    BT = blockindextype(TB, eltype.(indices)...)
-    return new{N,I,TB,BT}(block, indices)
+  ) where {N,BT,I<:NTuple{N,AbstractVector},TB<:Integer}
+    return new{N,BT,I,TB}(block, indices)
   end
+end
+function BlockIndexVector{1,BT}(block::Block{1}, indices::AbstractVector) where {BT}
+  return BlockIndexVector{1,BT}(block, (indices,))
+end
+function BlockIndexVector(
+  block::Block{N,TB}, indices::NTuple{N,AbstractVector}
+) where {N,TB<:Integer}
+  BT = Base.promote_op(_getindex, typeof(block), eltype.(indices)...)
+  return BlockIndexVector{N,BT}(block, indices)
 end
 function BlockIndexVector(block::Block{1}, indices::AbstractVector)
   return BlockIndexVector(block, (indices,))
 end
 Base.size(a::BlockIndexVector) = length.(a.indices)
 function Base.getindex(a::BlockIndexVector{N}, I::Vararg{Integer,N}) where {N}
-  return a.block[map((r, i) -> r[i], a.indices, I)...]
+  return _getindex(Block(a), getindex.(a.indices, I)...)
 end
 BlockArrays.block(b::BlockIndexVector) = b.block
 BlockArrays.Block(b::BlockIndexVector) = b.block
 
 Base.copy(a::BlockIndexVector) = BlockIndexVector(a.block, copy.(a.indices))
+
+function Base.getindex(b::AbstractBlockedUnitRange, Kkr::BlockIndexVector{1})
+  return b[block(Kkr)][Kkr.indices...]
+end
 
 using ArrayLayouts: LayoutArray
 @propagate_inbounds Base.getindex(b::AbstractArray{T,N}, K::BlockIndexVector{N}) where {T,N} = b[block(
@@ -315,6 +361,30 @@ using ArrayLayouts: LayoutArray
 @propagate_inbounds Base.getindex(b::LayoutArray{T,1}, K::BlockIndexVector{1}) where {T} = b[block(
   K
 )][K.indices...]
+
+function blockedunitrange_getindices(
+  a::AbstractBlockedUnitRange,
+  indices::BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexVector{1}}},
+)
+  return mortar(map(b -> a[b], blocks(indices)))
+end
+function blockedunitrange_getindices(
+  a::AbstractBlockedUnitRange,
+  indices::BlockVector{<:GenericBlockIndex{1},<:Vector{<:BlockIndexVector{1}}},
+)
+  return mortar(map(b -> a[b], blocks(indices)))
+end
+
+# This is a specialization of `BlockArrays.unblock`:
+# https://github.com/JuliaArrays/BlockArrays.jl/blob/v1.6.3/src/views.jl#L8-L11
+# that is used in the `to_indices` logic for blockwise slicing in
+# BlockArrays.jl.
+# TODO: Ideally this would be defined in BlockArrays.jl once the slicing
+# there is made more generic.
+function BlockArrays.unblock(A, inds, I::Tuple{BlockIndexVector{1},Vararg{Any}})
+  B = first(I)
+  return _blockslice(B, inds[1][B])
+end
 
 function to_blockindices(a::AbstractBlockedUnitRange{<:Integer}, I::AbstractArray{Bool})
   I_blocks = blocks(BlockedVector(I, blocklengths(a)))

@@ -92,10 +92,10 @@ end
 # TODO: Move to `GradedUnitRanges` or `BlockArraysExtensions`.
 to_block(I::Block{1}) = I
 to_block(I::BlockIndexRange{1}) = Block(I)
-to_block(I::BlockIndexVector) = Block(I)
+to_block(I::BlockIndexVector{1}) = Block(I)
 to_block_indices(I::Block{1}) = Colon()
 to_block_indices(I::BlockIndexRange{1}) = only(I.indices)
-to_block_indices(I::BlockIndexVector) = only(I.indices)
+to_block_indices(I::BlockIndexVector{1}) = only(I.indices)
 
 function Base.view(
   a::AbstractBlockSparseArray{<:Any,N},
@@ -166,7 +166,7 @@ function BlockArrays.viewblock(
     <:AbstractBlockSparseArray{T,N},
     <:Tuple{Vararg{Union{BlockSliceCollection,SubBlockSliceCollection},N}},
   },
-  block::Union{Block{N},BlockIndexRange{N}},
+  block::Union{Block{N},BlockIndexRange{N},BlockIndexVector{N}},
 ) where {T,N}
   return viewblock(a, to_tuple(block)...)
 end
@@ -223,6 +223,14 @@ function to_blockindexrange(
 end
 function to_blockindexrange(
   a::BlockIndices{<:BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexVector}}}, I::Block{1}
+)
+  # TODO: Ideally we would just use `a.blocks[I]` but that doesn't
+  # work right now.
+  return blocks(a.blocks)[Int(I)]
+end
+function to_blockindexrange(
+  a::BlockIndices{<:BlockVector{<:GenericBlockIndex{1},<:Vector{<:BlockIndexVector}}},
+  I::Block{1},
 )
   # TODO: Ideally we would just use `a.blocks[I]` but that doesn't
   # work right now.
