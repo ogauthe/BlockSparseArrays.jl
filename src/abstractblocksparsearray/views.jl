@@ -190,6 +190,26 @@ function Base.view(
   return viewblock(a, block...)
 end
 
+# Disambiguate between block reindexing of blockwise views
+# (`BlockSliceCollection`) and subblockwise views (`SubBlockSliceCollection`),
+# which both include `Base.Slice`.
+function Base.view(
+  a::SubArray{T,N,<:AbstractBlockSparseArray{T,N},<:Tuple{Vararg{Base.Slice,N}}},
+  block::Block{N},
+) where {T,N}
+  return viewblock(a, block)
+end
+
+# Block reindexing of blockwise views (`BlockSliceCollection`).
+function viewblock_blockslice(a::SubArray{<:Any,N}, block::Vararg{Block{1},N}) where {N}
+  I = CartesianIndex(Int.(block))
+  # TODO: Use `eachblockstoredindex`.
+  if I ∈ eachstoredindex(blocks(a))
+    return blocks(a)[I]
+  end
+  return BlockView(parent(a), Block.(Base.reindex(parentindices(blocks(a)), Tuple(I))))
+end
+
 # XXX: TODO: Distinguish if a sub-view of the block needs to be taken!
 # Define a new `SubBlockSlice` which is used in:
 # `@interface interface(a) to_indices(a, inds, I::Tuple{UnitRange{<:Integer},Vararg{Any}})`
@@ -199,12 +219,17 @@ function BlockArrays.viewblock(
   a::SubArray{T,N,<:AbstractBlockSparseArray{T,N},<:Tuple{Vararg{BlockSliceCollection,N}}},
   block::Vararg{Block{1},N},
 ) where {T,N}
-  I = CartesianIndex(Int.(block))
-  # TODO: Use `eachblockstoredindex`.
-  if I ∈ eachstoredindex(blocks(a))
-    return blocks(a)[I]
-  end
-  return BlockView(parent(a), Block.(Base.reindex(parentindices(blocks(a)), Tuple(I))))
+  return viewblock_blockslice(a, block...)
+end
+
+# Disambiguate between block reindexing of blockwise views
+# (`BlockSliceCollection`) and subblockwise views (`SubBlockSliceCollection`),
+# which both include `Base.Slice`.
+function BlockArrays.viewblock(
+  a::SubArray{T,N,<:AbstractBlockSparseArray{T,N},<:Tuple{Vararg{Base.Slice,N}}},
+  block::Vararg{Block{1},N},
+) where {T,N}
+  return viewblock_blockslice(a, block...)
 end
 
 function to_blockindexrange(
@@ -291,6 +316,15 @@ function Base.view(
 ) where {T,N}
   return viewblock(a, block...)
 end
+# Fix ambiguity error.
+function Base.view(
+  a::SubArray{
+    T,N,<:AbstractBlockSparseArray{T,N},<:Tuple{Vararg{SubBlockSliceCollection,N}}
+  },
+  block::Vararg{Block{1},N},
+) where {T,N}
+  return viewblock(a, block...)
+end
 function BlockArrays.viewblock(
   a::SubArray{
     T,N,<:AbstractBlockSparseArray{T,N},<:Tuple{Vararg{SubBlockSliceCollection,N}}
@@ -302,6 +336,14 @@ end
 
 blockedslice_blocks(x::BlockSlice) = x.block
 blockedslice_blocks(x::BlockIndices) = x.blocks
+# Reinterpret the slice blockwise.
+function blockedslice_blocks(x::Base.Slice)
+  return mortar(
+    map(BlockRange(x.indices)) do b
+      return BlockIndexRange(b, Base.Slice(Base.axes1(x.indices[b])))
+    end,
+  )
+end
 
 # TODO: Define `@interface interface(a) viewblock`.
 function BlockArrays.viewblock(
@@ -319,6 +361,7 @@ function BlockArrays.viewblock(
   end
   return @view parent(a)[brs...]
 end
+
 # TODO: Define `@interface interface(a) viewblock`.
 function BlockArrays.viewblock(
   a::SubArray{
