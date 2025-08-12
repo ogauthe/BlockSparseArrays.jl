@@ -262,12 +262,17 @@ function blocksparsezeros(::BlockType{A}, axes...) where {A<:AbstractArray}
   # to make a bit more generic.
   return BlockSparseArray{eltype(A),ndims(A),A}(undef, axes...)
 end
-function blocksparse(d::Dict{<:Block,<:AbstractArray}, axes...)
-  a = blocksparsezeros(BlockType(valtype(d)), axes...)
+function blocksparse(d::Dict{<:Block,<:AbstractArray}, ax::Tuple)
+  a = blocksparsezeros(BlockType(valtype(d)), ax...)
   for I in eachindex(d)
     a[I] = d[I]
   end
   return a
+end
+function blocksparse(
+  d::Dict{<:Block,<:AbstractArray}, blocklens::AbstractVector{<:Integer}...
+)
+  return blocksparse(d, map(blockedrange, blocklens))
 end
 
 # Base `AbstractArray` interface
