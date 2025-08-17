@@ -278,6 +278,11 @@ function _blockreshape(a::AbstractArray, axes::Tuple{Vararg{AbstractUnitRange}})
     return reshape(reshaped_blocks_a[I], block_axes_I)
   end
   bs = Dict(Block(Tuple(I)) => f(I) for I in eachstoredindex(reshaped_blocks_a))
+  if !isconcretetype(eltype(bs))
+    # This branch only seems to be required in Julia 1.10, not Julia 1.11.
+    # TODO: Remove this branch once Julia 1.10 support is dropped.
+    bs = Dict{Block{length(axes),Int},AbstractArray{eltype(a),length(axes)}}()
+  end
   return blocksparse(bs, axes)
 end
 
